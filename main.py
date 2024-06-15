@@ -29,28 +29,29 @@ def main(base_url, content_name):
     session = get_authenticated_session()
     directories = list_directories(base_url, session)
 
-    files = []
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_directory = {executor.submit(fetch_files_in_directory, base_url + directory, session, accepted_extensions): directory for directory in directories}
-        for future in as_completed(future_to_directory):
-            try:
-                files.extend(future.result())
-            except Exception as exc:
-                print(f'Error fetching directory contents: {exc}')
-
-    # We split the input string for the content name to make it case-insensitive
+    matched_files = {}
     content_name_array = content_name.lower().split()
     threshold = len(content_name_array) / 2  # At least half of the elements
 
-    # We will store the files that contain the content name above threshold
-    found_content = []
-    for file in files:
-        match_count = sum(content.lower() in file.lower() for content in content_name_array)
-        if match_count >= threshold:
-            found_content.append(file)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Dont ask me, chatgpt wrote this line and it works
+        future_to_directory = {executor.submit(fetch_files_in_directory, base_url + directory, session, accepted_extensions): directory for directory in directories}
+        # We're matching directories AND files against the input content name
+        for future in as_completed(future_to_directory):
+            directory = future_to_directory[future]
+            try:
+                files = future.result()
+                # Check if the directory name contains at least half of the content_name_array words
+                match_count = sum(content.lower() in directory.lower() for content in content_name_array)
+                if match_count >= threshold:
+                    matched_files[directory] = files
+            except Exception as exc:
+                print(f'Error fetching directory contents for {directory}: {exc}')
 
-    print(found_content)
-
+    for key, values in matched_files.items():
+        print(f'Directory: {key}')
+        for value in values:
+            print(f'  File: {value}')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Crawl directories and list files with accepted extensions.')
