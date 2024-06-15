@@ -42,10 +42,14 @@ def main(base_url, content_name):
     content_name_array = content_name.lower().split()
     threshold = len(content_name_array) / 2  # At least half of the elements
 
+    # We will store the files that contain the content name above threshold
+    found_content = []
     for file in files:
         match_count = sum(content.lower() in file.lower() for content in content_name_array)
         if match_count >= threshold:
-            print(file)
+            found_content.append(file)
+
+    print(found_content)
 
 
 if __name__ == "__main__":
