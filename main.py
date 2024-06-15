@@ -40,9 +40,13 @@ def main(base_url, content_name):
 
     # We split the input string for the content name to make it case-insensitive
     content_name_array = content_name.lower().split()
+    threshold = len(content_name_array) / 2  # At least half of the elements
+
     for file in files:
-        if all(content.lower() in file.lower() for content in content_name_array):
+        match_count = sum(content.lower() in file.lower() for content in content_name_array)
+        if match_count >= threshold:
             print(file)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Crawl directories and list files with accepted extensions.')
