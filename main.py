@@ -4,9 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
 
 def get_authenticated_session():
-    # You may need to modify this part to handle authentication
     session = requests.Session()
-    # session.post(login_url, data=login_data)
     return session
 
 def fetch_directory_contents(url, session):
@@ -24,7 +22,7 @@ def fetch_files_in_directory(directory_url, session, accepted_extensions):
     files = [a.get('href') for a in soup.find_all('a') if any(a.get('href').lower().endswith(ext) for ext in accepted_extensions)]
     return [directory_url + file for file in files]
 
-def main(base_url):
+def main(base_url, content_name):
     accepted_extensions = ['.mp4', '.mkv', '.avi']  # Add your accepted extensions here
     max_workers = 5  # Adjust the number of concurrent workers as needed
 
@@ -40,13 +38,17 @@ def main(base_url):
             except Exception as exc:
                 print(f'Error fetching directory contents: {exc}')
 
+    # We split the input string for the content name to make it case-insensitive
+    content_name_array = content_name.lower().split()
     for file in files:
-        print(file)
+        if all(content.lower() in file.lower() for content in content_name_array):
+            print(file)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Crawl directories and list files with accepted extensions.')
     parser.add_argument('url', type=str, help='The base URL of the directory to crawl')
+    parser.add_argument('content', type=str, help='Name of the content to find')
 
     args = parser.parse_args()
-    
-    main(args.url)
+
+    main(args.url, args.content)
