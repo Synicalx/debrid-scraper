@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
 import curses
+import os
 
 def get_authenticated_session():
     session = requests.Session()
@@ -22,6 +23,14 @@ def fetch_files_in_directory(directory_url, session, accepted_extensions):
     soup = fetch_directory_contents(directory_url, session)
     files = [a.get('href') for a in soup.find_all('a') if any(a.get('href').lower().endswith(ext) for ext in accepted_extensions)]
     return [directory_url + file for file in files]
+
+def download_file(url, local_path, session):
+    response = session.get(url, stream=True)
+    response.raise_for_status()
+    os.makedirs(os.path.dirname(local_path), exist_ok=True)
+    with open(local_path, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
 
 def main(base_url, content_name):
     accepted_extensions = ['.mp4', '.mkv', '.avi']  # Add your accepted extensions here
@@ -48,9 +57,9 @@ def main(base_url, content_name):
                 print(f'Error fetching directory contents for {directory}: {exc}')
 
     # Call the curses wrapper function to start the CLI
-    curses.wrapper(directory_selection_cli, matched_files)
+    curses.wrapper(directory_selection_cli, matched_files, session)
 
-def directory_selection_cli(stdscr, matched_files):
+def directory_selection_cli(stdscr, matched_files, session):
     curses.curs_set(0)  # Hide the cursor
     directories = list(matched_files.keys())
     selected = [False] * len(directories)
@@ -90,16 +99,33 @@ def directory_selection_cli(stdscr, matched_files):
 
     stdscr.clear()
     selected_directories = {directories[i]: matched_files[directories[i]] for i in range(len(directories)) if selected[i]}
-    stdscr.addstr(0, 0, "Selected directories and files:")
+    stdscr.addstr(0, 0, "Selected directories:")
     row = 1
-    for directory, files in selected_directories.items():
+    for directory in selected_directories.keys():
         stdscr.addstr(row, 0, directory)
         row += 1
-        for file in files:
-            stdscr.addstr(row, 2, file)
-            row += 1
+    stdscr.addstr(row, 0, "Confirm selection? (yes/no)")
     stdscr.refresh()
-    stdscr.getch()
+
+    curses.echo()
+    confirmation = stdscr.getstr(row + 1, 0).decode('utf-8').strip().lower()
+    curses.noecho()
+
+    if confirmation != "yes":
+        directory_selection_cli(stdscr, matched_files, session)
+    else:
+        stdscr.clear()
+        stdscr.addstr(0, 0, "Downloading selected directories...")
+        stdscr.refresh()
+
+        for directory, files in selected_directories.items():
+            for file in files:
+                local_path = os.path.join(os.getcwd(), directory, os.path.basename(file))
+                download_file(file, local_path, session)
+
+        stdscr.addstr(1, 0, "Download completed. Press any key to exit.")
+        stdscr.refresh()
+        stdscr.getch()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Crawl directories and list files with accepted extensions.')
