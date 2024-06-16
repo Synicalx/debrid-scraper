@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
+import curses
 
 def get_authenticated_session():
     session = requests.Session()
@@ -34,9 +35,7 @@ def main(base_url, content_name):
     threshold = len(content_name_array) / 2  # At least half of the elements
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Dont ask me, chatgpt wrote this line and it works
         future_to_directory = {executor.submit(fetch_files_in_directory, base_url + directory, session, accepted_extensions): directory for directory in directories}
-        # We're matching directories AND files against the input content name
         for future in as_completed(future_to_directory):
             directory = future_to_directory[future]
             try:
@@ -48,10 +47,59 @@ def main(base_url, content_name):
             except Exception as exc:
                 print(f'Error fetching directory contents for {directory}: {exc}')
 
-    for key, values in matched_files.items():
-        print(f'Directory: {key}')
-        for value in values:
-            print(f'  File: {value}')
+    # Call the curses wrapper function to start the CLI
+    curses.wrapper(directory_selection_cli, matched_files)
+
+def directory_selection_cli(stdscr, matched_files):
+    curses.curs_set(0)  # Hide the cursor
+    directories = list(matched_files.keys())
+    selected = [False] * len(directories)
+    current_row = 0
+
+    def print_menu():
+        stdscr.clear()
+        h, w = stdscr.getmaxyx()
+        for idx, directory in enumerate(directories):
+            x = w // 2 - len(directory) // 2
+            y = h // 2 - len(directories) // 2 + idx
+            if idx == current_row:
+                stdscr.attron(curses.color_pair(1))
+            if selected[idx]:
+                stdscr.addstr(y, x, directory + " [*]")
+            else:
+                stdscr.addstr(y, x, directory)
+            if idx == current_row:
+                stdscr.attroff(curses.color_pair(1))
+        stdscr.refresh()
+
+    curses.start_color()
+    curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
+
+    while True:
+        print_menu()
+        key = stdscr.getch()
+
+        if key == curses.KEY_UP and current_row > 0:
+            current_row -= 1
+        elif key == curses.KEY_DOWN and current_row < len(directories) - 1:
+            current_row += 1
+        elif key == ord(' '):
+            selected[current_row] = not selected[current_row]
+        elif key == ord('\n'):
+            break
+
+    stdscr.clear()
+    selected_directories = {directories[i]: matched_files[directories[i]] for i in range(len(directories)) if selected[i]}
+    stdscr.addstr(0, 0, "Selected directories and files:")
+    row = 1
+    for directory, files in selected_directories.items():
+        stdscr.addstr(row, 0, directory)
+        row += 1
+        for file in files:
+            stdscr.addstr(row, 2, file)
+            row += 1
+    stdscr.refresh()
+    stdscr.getch()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Crawl directories and list files with accepted extensions.')
