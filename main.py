@@ -1,9 +1,9 @@
-import requests
-from bs4 import BeautifulSoup
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
 import curses
 import os
+import requests
+from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def get_authenticated_session():
     session = requests.Session()
