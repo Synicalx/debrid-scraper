@@ -49,7 +49,7 @@ def main(base_url, content_name):
             directory = future_to_directory[future]
             try:
                 files = future.result()
-                # Check if the directory name contains at least half of the content_name_array words
+                # Check if the directory name contains at least threshold % of the content_name_array words
                 match_count = sum(content.lower() in directory.lower() for content in content_name_array)
                 if match_count >= threshold:
                     matched_files[directory] = files
@@ -60,7 +60,7 @@ def main(base_url, content_name):
     curses.wrapper(directory_selection_cli, matched_files, session)
 
 def directory_selection_cli(stdscr, matched_files, session):
-    curses.curs_set(0)  # Hide the cursor
+    curses.curs_set(0)
     directories = list(matched_files.keys())
     selected = [False] * len(directories)
     current_row = 0
